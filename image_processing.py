@@ -5,6 +5,18 @@ from operator import itemgetter
 import math
 import os
 from time import time
+import sys
+import imutils
+sys.path.insert(1, '/hpf/largeprojects/dsingh/cts/cts_sam/scripts/preprocess')
+from utils import *
+
+
+def standardize_projection(projection, extra_padding=5, invert=False, rotation=0, img_dim=128):
+    projection_trimmed = trim_to_bounds(projection)
+    projection_padded = pad_to_square(projection_trimmed, extra_padding=extra_padding)
+    projection_normalized = normalize_depths(projection_padded, invert=invert)
+    projection_resized = cv2.resize(projection_normalized, dsize=(img_dim, img_dim), interpolation=cv2.INTER_LINEAR)
+    return projection_resized
 
 
 def calculate_dist(p1, p2):
@@ -15,7 +27,22 @@ def calculate_dist(p1, p2):
 def filter_mask(img, minDistCentroid=None, minDistEdge=None, minArea=None):
     # imgGray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     imgGray = img.copy().astype('uint8')
+    plt.subplot(221), plt.imshow(imgGray, cmap='gray')
     imgGray[imgGray > 0] = 255
+
+    plt.subplot(222), plt.imshow(imgGray, cmap='gray')
+    kernel = np.ones((3, 3), np.uint8)
+
+    # imgGray = cv2.dilate(imgGray, kernel, iterations=1)
+    # imgGray = cv2.erode(imgGray, kernel, iterations=1)
+    plt.subplot(223), plt.imshow(imgGray, cmap='gray')
+
+    # apply gaussian blur
+    # imgGray = cv2.GaussianBlur(imgGray, (5, 5), sigmaX=2, sigmaY=2)
+    imgGray[imgGray > 0] = 255
+    plt.subplot(224), plt.imshow(imgGray, cmap='gray')
+
+    # plt.show()
     corrected_mask = np.ones(img.shape[:2], dtype='uint8') * 255
 
     cnts, hier = cv2.findContours(imgGray, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
@@ -37,8 +64,8 @@ def filter_mask(img, minDistCentroid=None, minDistEdge=None, minArea=None):
     # make it descending
     blob_features.reverse()
 
-    # for cnt, centroid, area in blob_features:
-    #     print(f'{area}, {centroid}')
+    for cnt, centroid, area in blob_features:
+        print(f'{area}, {centroid}')
     # drop the contour that fits around the entire image (should be the biggest one)
     blob_features = blob_features[1:]
     main_blob = blob_features[0]
