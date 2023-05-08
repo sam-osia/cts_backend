@@ -251,6 +251,14 @@ def submit_image(capture_method=None, subject_id=None):
     print(os.path.join(file_path, 'preprocessing_info.json'))
     with open(os.path.join(file_path, 'preprocessing_info.json'), 'w') as f:
         json.dump(request.get_json(), f, ensure_ascii=False, indent=4)
+
+    if capture_method == 'android':
+        patient_info = next((item for item in patients_list if item["AndroidID"] == subject_id), None)
+        patient_info['AndroidProcessed'] = True
+    elif capture_method == 'iphone':
+        patient_info = next((item for item in patients_list if item["iPhoneID"] == subject_id), None)
+        patient_info['iPhoneProcessed'] = True
+
     return {}
 
 
