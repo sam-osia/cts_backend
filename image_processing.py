@@ -7,8 +7,9 @@ import os
 from time import time
 import sys
 import imutils
-sys.path.insert(1, '/hpf/largeprojects/dsingh/cts/cts_sam/scripts/preprocess')
-from utils import *
+sys.path.insert(1, '/hpf/largeprojects/dsingh/cts/cts_sam/scripts')
+from preprocess.utils import *
+from misc.utils import *
 
 
 def standardize_projection(projection, extra_padding=5, invert=False, rotation=0, img_dim=128):
@@ -19,6 +20,53 @@ def standardize_projection(projection, extra_padding=5, invert=False, rotation=0
     return projection_resized
 
 
+def binvox_to_projection(binvox_path, cutoff_pct=0.5, img_dim=128, extra_padding=5, invert=False, rotation=0):
+    data = load_binvox(binvox_path)
+    density = np.sum(data[:, int(data.shape[1] * cutoff_pct):, :], axis=1)
+    projection = standardize_projection(density, extra_padding=extra_padding, invert=invert, rotation=rotation, img_dim=img_dim)
+    # rotate 180 degrees
+    projection = np.rot90(projection, k=2)
+    return projection
+
+
+def get_cephalic_index(projection):
+    # binarize the projection
+    mask = np.zeros(projection.shape)
+    mask[projection > 0] = 1
+
+    widths = np.sum(mask, axis=1)
+    max_width = np.max(widths)
+    max_width_position = np.argmax(widths)
+    # get the first and last nonzero indices of the max width row to mark the left and right edges of the head
+    left_edge = np.nonzero(mask[max_width_position, :])[0][0]
+    right_edge = np.nonzero(mask[max_width_position, :])[0][-1]
+
+    heights = np.sum(mask, axis=0)
+    max_height = np.max(heights)
+    max_height_position = np.argmax(heights)
+    # get the first and last nonzero indices of the max height column to mark the top and bottom edges of the head
+    top_edge = np.nonzero(mask[:, max_height_position])[0][0]
+    bottom_edge = np.nonzero(mask[:, max_height_position])[0][-1]
+    #
+    # # draw a line from the left edge to the right edge of the head at the max width position
+    # mask = cv2.line(mask, (left_edge, max_width_position), (right_edge, max_width_position), 0, 1)
+    # # draw a line from the top edge to the bottom edge of the head at the max height position
+    # mask = cv2.line(mask, (max_height_position, top_edge), (max_height_position, bottom_edge), 0, 1)
+    #
+    # plt.subplot(121)
+    # plt.imshow(projection, cmap='gray')
+    #
+    # plt.subplot(122)
+    # plt.imshow(mask, cmap='gray')
+    #
+    # plt.suptitle(f'Width: {max_width} - Height: {max_height}')
+    # plt.show()
+
+    return (left_edge, max_width_position), (right_edge, max_width_position), (max_height_position, top_edge), (max_height_position, bottom_edge)
+
+
+
+
 def calculate_dist(p1, p2):
     dist = math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
     return dist
@@ -27,20 +75,20 @@ def calculate_dist(p1, p2):
 def filter_mask(img, minDistCentroid=None, minDistEdge=None, minArea=None):
     # imgGray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     imgGray = img.copy().astype('uint8')
-    plt.subplot(221), plt.imshow(imgGray, cmap='gray')
+    # plt.subplot(221), plt.imshow(imgGray, cmap='gray')
     imgGray[imgGray > 0] = 255
 
-    plt.subplot(222), plt.imshow(imgGray, cmap='gray')
+    # plt.subplot(222), plt.imshow(imgGray, cmap='gray')
     kernel = np.ones((3, 3), np.uint8)
 
     # imgGray = cv2.dilate(imgGray, kernel, iterations=1)
     # imgGray = cv2.erode(imgGray, kernel, iterations=1)
-    plt.subplot(223), plt.imshow(imgGray, cmap='gray')
+    # plt.subplot(223), plt.imshow(imgGray, cmap='gray')
 
     # apply gaussian blur
     # imgGray = cv2.GaussianBlur(imgGray, (5, 5), sigmaX=2, sigmaY=2)
     imgGray[imgGray > 0] = 255
-    plt.subplot(224), plt.imshow(imgGray, cmap='gray')
+    # plt.subplot(224), plt.imshow(imgGray, cmap='gray')
 
     # plt.show()
     corrected_mask = np.ones(img.shape[:2], dtype='uint8') * 255
